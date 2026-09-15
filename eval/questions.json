@@ -1,0 +1,23 @@
+[
+  {"question": "What value is the constant k set to in reciprocal rank fusion?", "source": "hybrid-search.md", "contains": "conventionally 60", "kind": "exact"},
+  {"question": "What does IDF stand for?", "source": "hybrid-search.md", "contains": "inverse document frequency", "kind": "exact"},
+  {"question": "How many dimensions does BAAI/bge-small-en-v1.5 produce?", "source": "embeddings.md", "contains": "384 dimensions", "kind": "exact"},
+  {"question": "What is nDCG?", "source": "evaluation.md", "contains": "Normalised Discounted Cumulative Gain", "kind": "exact"},
+  {"question": "What is the exact BGE query prefix string?", "source": "embeddings.md", "contains": "Represent this sentence for searching relevant passages", "kind": "exact"},
+  {"question": "How many tokens does BGE accept before truncating?", "source": "embeddings.md", "contains": "512 tokens", "kind": "exact"},
+  {"question": "How many candidates should each retriever return before they are combined?", "source": "hybrid-search.md", "contains": "top 20 from each", "kind": "exact"},
+  {"question": "How much time does reranking add on CPU?", "source": "operations.md", "contains": "fifty to two hundred milliseconds", "kind": "exact"},
+
+  {"question": "Why can't the two retrievers' numbers simply be averaged together?", "source": "hybrid-search.md", "contains": "not on the same scale", "kind": "paraphrase"},
+  {"question": "What goes wrong if I cap the response length on a model that thinks before answering?", "source": "operations.md", "contains": "no content at all", "kind": "paraphrase"},
+  {"question": "Why is it usually pointless to make the search step faster?", "source": "operations.md", "contains": "generation step dominates", "kind": "paraphrase"},
+  {"question": "The right answer is found but shows up low in the list. What fixes that?", "source": "evaluation.md", "contains": "a reranker fixes", "kind": "paraphrase"},
+  {"question": "Why does one of the metrics stop being useful when I only have a few documents?", "source": "evaluation.md", "contains": "Recall saturates on small corpora", "kind": "paraphrase"},
+  {"question": "What happens to a passage that runs past the length the model allows?", "source": "embeddings.md", "contains": "discards everything past that without warning", "kind": "paraphrase"},
+  {"question": "Why can only one process open the local database at a time?", "source": "operations.md", "contains": "exclusive lock on that folder", "kind": "paraphrase"},
+  {"question": "Is a bigger model always the better choice?", "source": "embeddings.md", "contains": "Larger is not automatically better", "kind": "paraphrase"},
+  {"question": "What is the risk of keeping previous answers around to serve again?", "source": "operations.md", "contains": "serves stale answers", "kind": "paraphrase"},
+  {"question": "Why do neighbouring pieces of text share some content at their edges?", "source": "sample.md", "contains": "Overlapping chunks mitigate the boundary problem", "kind": "paraphrase"},
+  {"question": "Is adding a document cheaper than teaching the model new facts?", "source": "sample.md", "contains": "Retraining", "kind": "paraphrase"},
+  {"question": "Why does word-matching search fail when a question is worded differently?", "source": "hybrid-search.md", "contains": "automobile", "kind": "paraphrase"}
+]

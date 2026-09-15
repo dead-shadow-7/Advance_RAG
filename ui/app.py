@@ -28,6 +28,22 @@ st.sidebar.write("API: " + ("🟢 up" if healthy else "🔴 unreachable"))
 if not healthy:
     st.sidebar.code("uvicorn main:app --reload")
 
+# The API owns the Qdrant lock, so it reindexes on our behalf — no need to stop
+# the server to pick up a newly added document.
+if st.sidebar.button("Re-index data/", disabled=not healthy, width="stretch"):
+    with st.spinner("Loading, chunking and embedding data/ ..."):
+        try:
+            done = requests.post(f"{api_url}/ingest", timeout=1800)
+            done.raise_for_status()
+            counts = done.json()
+        except requests.RequestException as exc:
+            st.sidebar.error(f"Indexing failed: {exc}")
+        else:
+            st.sidebar.success(
+                f"{counts['chunks']} chunks from {counts['documents']} pages/files "
+                f"— {counts['indexed']} in the index"
+            )
+
 # Re-asking the same question after each retrieval change is the M2 loop.
 history = st.session_state.setdefault("history", [])
 if history:
@@ -82,14 +98,16 @@ def render(data: dict, elapsed: float, requested_k: int) -> None:
         st.subheader("Retrieved chunks")
         if not citations:
             st.warning("Nothing retrieved. Ingested yet? `python -m rag.ingest`")
+        # Cosine sits in 0-1 but a fused RRF score is ~0.03, so bars are drawn
+        # relative to the top hit and mean "how close to the best result".
+        top_score = max((c["score"] for c in citations), default=1.0) or 1.0
         for rank, citation in enumerate(citations, start=1):
             where = citation["source"] + (
                 f" · page {citation['page']}" if citation["page"] else ""
             )
             header = f"**[{rank}]** {where} — `{citation['score']:.4f}`"
             with st.expander(header, expanded=rank == 1):
-                # Cosine similarity is 0..1 here; the bar makes rank gaps visible.
-                st.progress(max(0.0, min(1.0, citation["score"])))
+                st.progress(max(0.0, min(1.0, citation["score"] / top_score)))
                 st.text(citation["text"])
                 st.caption(f"chunk_id: {citation['chunk_id']}")
 

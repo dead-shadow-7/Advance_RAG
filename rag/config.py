@@ -8,7 +8,16 @@ MODEL_CACHE = PROJECT_ROOT / ".model_cache"
 
 EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
 EMBEDDING_DIM = 384  # must match the model; changing models means re-indexing
+SPARSE_MODEL = "Qdrant/bm25"
 COLLECTION = "chunks"
+
+# "dense" | "sparse" | "hybrid" — hybrid fuses the other two with RRF.
+RETRIEVAL_MODE = "hybrid"
+# Each retriever returns this many candidates before fusion. Fusing two short
+# lists mostly reproduces whichever was already right, so keep it well above
+# the top_k that is finally returned.
+CANDIDATES = 20
+RRF_K = 60  # damps the top ranks; higher forgives one list's mistakes more
 
 CHUNK_SIZE = 512
 CHUNK_OVERLAP = 64

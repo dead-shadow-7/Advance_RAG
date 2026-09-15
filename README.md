@@ -53,19 +53,38 @@ A question goes in, a cited answer comes out.
 - [x] Return which chunks the answer came from.
 
 Run it: `python -m rag.ingest` to index `data/`, then `uvicorn main:app --reload`.
-Embedded Qdrant locks its folder, so stop the server before re-ingesting.
 
 Debug UI: `streamlit run ui/app.py` — shows the ranked chunks and scores behind
-each answer. It calls the API over HTTP, so the API must be running too.
+each answer, and has a "Re-index data/" button. It calls the API over HTTP, so
+the API must be running too. Embedded Qdrant locks its folder to one process,
+which is why reindexing goes through the API's own `POST /ingest` rather than a
+second process.
 
 ### M2 — Make it find the right things
 
 Retrieval is where RAG quality lives, so this is the milestone worth the most time.
 
-- [ ] Add BM25 keyword search alongside vector search, merged with RRF.
+- [x] Add BM25 keyword search alongside vector search, merged with RRF.
 - [ ] Add a reranker on top.
 - [ ] Add web search and fold the results into the same pipeline.
-- [ ] Write ~20 test questions with known answers, and measure Recall@5 before and after each change above.
+- [x] Write ~20 test questions with known answers, and measure Recall@5 before and after each change above.
+
+Measure with `python -m eval.evaluate` (builds its own in-memory index, so it
+runs alongside the API). On 161 chunks, 20 questions:
+
+| mode | recall@5 | MRR | MRR exact | MRR paraphrase |
+|---|---|---|---|---|
+| dense | 0.85 | 0.675 | 0.625 | 0.708 |
+| sparse (BM25) | 0.95 | 0.733 | **0.875** | 0.639 |
+| hybrid (RRF) | **1.00** | **0.833** | 0.812 | **0.847** |
+
+Each retriever wins its own half — BM25 on exact identifiers, dense on
+paraphrase — and hybrid is the only one strong at both. Dense misses questions
+like "what does IDF stand for" entirely; BM25 ranks them first.
+
+On the earlier 9-chunk corpus hybrid looked *worse* than BM25 alone. That
+corpus was too small to measure anything: 10 results requested from 9 chunks
+makes recall@10 meaningless. Small evaluation sets mislead confidently.
 
 ### M3 — Make it handle hard questions
 
