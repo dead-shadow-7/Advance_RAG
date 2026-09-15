@@ -1,0 +1,15 @@
+# Environment
+.env
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Local data and tooling
+.pytest_cache/
+.streamlit/
+*.db
+*.log
