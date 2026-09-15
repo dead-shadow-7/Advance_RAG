@@ -2,3 +2,8 @@ fastapi
 uvicorn
 pydantic
 python-dotenv
+pypdf
+tiktoken
+fastembed
+qdrant-client
+openai

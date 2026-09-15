@@ -9,6 +9,8 @@ __pycache__/
 *.egg-info/
 
 # Local data and tooling
+qdrant_data/
+.model_cache/
 .pytest_cache/
 .streamlit/
 *.db

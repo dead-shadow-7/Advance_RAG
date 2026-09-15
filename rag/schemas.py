@@ -11,6 +11,7 @@ class Citation(BaseModel):
     chunk_id: str
     text: str  # the passage the answer leaned on
     score: float
+    page: int | None = None
 
 
 class AskResponse(BaseModel):

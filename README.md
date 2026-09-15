@@ -46,11 +46,14 @@ Everything in later milestones is a better version of one of those four boxes.
 
 A question goes in, a cited answer comes out.
 
-- [ ] FastAPI app with an `/ask` endpoint.
-- [ ] Load PDFs and Markdown, split into chunks.
-- [ ] Embed the chunks and store them in Qdrant.
-- [ ] Retrieve the top chunks and have the LLM answer from them.
-- [ ] Return which chunks the answer came from.
+- [x] FastAPI app with an `/ask` endpoint.
+- [x] Load PDFs and Markdown, split into chunks.
+- [x] Embed the chunks and store them in Qdrant.
+- [x] Retrieve the top chunks and have the LLM answer from them.
+- [x] Return which chunks the answer came from.
+
+Run it: `python -m rag.ingest` to index `data/`, then `uvicorn main:app --reload`.
+Embedded Qdrant locks its folder, so stop the server before re-ingesting.
 
 ### M2 — Make it find the right things
 
