@@ -1,27 +1,16 @@
-import logging
 from fastapi import FastAPI
-import inngest 
-import inngest.fast_api
-from inngest.experimental import ai
 
-from dotenv import load_dotenv
-import uuid 
-import os
-import datetime
+from rag.pipeline import answer_question
+from rag.schemas import AskRequest, AskResponse
 
-load_dotenv()
-
-inngest_client = inngest.Inngest(
-    app_id = "rag_app",
-    logger = logging.getLogger("uvicorn"),
-    is_production = False,
-    serializer = inngest.PydanticSerializer()
-)
-
-app = FastAPI()
-@app.get("/")
-def root():
-    return {"message": "Hello World"}
+app = FastAPI(title="ProductionRAG")
 
 
-inngest.fast_api.serve(app, inngest_client,[])
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
+@app.post("/ask", response_model=AskResponse)
+def ask(request: AskRequest):
+    return answer_question(request.question, request.top_k)

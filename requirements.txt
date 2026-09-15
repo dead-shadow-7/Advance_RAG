@@ -1,9 +1,4 @@
 fastapi
-inngest
-llama-index-core
-llama-index-readers-file
-python-dotenv
-qdrant-client
 uvicorn
-streamlit
-openai
+pydantic
+python-dotenv
