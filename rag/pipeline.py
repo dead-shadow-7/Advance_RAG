@@ -1,9 +1,10 @@
 from qdrant_client import QdrantClient
 
-from rag.config import CANDIDATES, RETRIEVAL_MODE
+from rag.config import CANDIDATES, RERANK, RERANK_CANDIDATES, RETRIEVAL_MODE
 from rag.embedder import embed_query, embed_query_sparse
 from rag.fusion import reciprocal_rank_fusion
 from rag.llm import complete
+from rag.reranker import rerank_passages
 from rag.schemas import AskResponse, Citation
 from rag.store import dense_search, ensure_collection, get_client, sparse_search
 
@@ -25,30 +26,47 @@ def search_points(
     top_k: int,
     mode: str = RETRIEVAL_MODE,
     candidates: int = CANDIDATES,
+    rerank: bool = RERANK,
 ) -> list[tuple]:
     """Return (point, score) pairs, best first.
 
     Takes an explicit client so the evaluation harness can run against its own
     index without fighting the API for the storage lock.
     """
+    # Reranking can only reorder what retrieval handed it, so fetch a shortlist
+    # rather than just the top_k that will ultimately be returned.
+    depth = max(top_k, RERANK_CANDIDATES) if rerank else top_k
+
     if mode == "dense":
-        hits = dense_search(client, embed_query(question), top_k)
-        return [(hit, hit.score) for hit in hits]
-    if mode == "sparse":
-        hits = sparse_search(client, embed_query_sparse(question), top_k)
-        return [(hit, hit.score) for hit in hits]
-    if mode != "hybrid":
+        hits = dense_search(client, embed_query(question), depth)
+        scored = [(hit, hit.score) for hit in hits]
+    elif mode == "sparse":
+        hits = sparse_search(client, embed_query_sparse(question), depth)
+        scored = [(hit, hit.score) for hit in hits]
+    elif mode == "hybrid":
+        # Pull deep from each retriever so fusion has room to promote a chunk
+        # that only one of them found.
+        scored = reciprocal_rank_fusion(
+            [
+                dense_search(client, embed_query(question), candidates),
+                sparse_search(client, embed_query_sparse(question), candidates),
+            ],
+            limit=depth,
+        )
+    else:
         raise ValueError(f"unknown retrieval mode: {mode}")
 
-    # Pull deep from each retriever so fusion has room to promote a chunk that
-    # only one of them found.
-    return reciprocal_rank_fusion(
-        [
-            dense_search(client, embed_query(question), candidates),
-            sparse_search(client, embed_query_sparse(question), candidates),
-        ],
-        limit=top_k,
+    if not rerank or not scored:
+        return scored[:top_k]
+
+    shortlist = scored[:RERANK_CANDIDATES]
+    scores = rerank_passages(question, [point.payload["text"] for point, _ in shortlist])
+    reordered = sorted(
+        ((point, score) for (point, _), score in zip(shortlist, scores)),
+        key=lambda pair: pair[1],
+        reverse=True,
     )
+    return reordered[:top_k]
 
 
 def to_citations(scored: list[tuple]) -> list[Citation]:

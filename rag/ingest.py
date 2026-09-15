@@ -17,6 +17,7 @@ from rag.store import (
     ensure_collection,
     get_client,
     is_hybrid_schema,
+    prune,
     upsert_chunks,
 )
 
@@ -54,13 +55,21 @@ def ingest(client: QdrantClient | None = None) -> dict:
             ensure_collection(client)
 
         upsert_chunks(client, chunks, dense, sparse)
+        removed = prune(client, [chunk.id for chunk in chunks])
         total = count(client)
     finally:
         if not borrowed:
             client.close()
 
+    if removed:
+        print(f"Removed {removed} chunks whose source is gone from {DATA_DIR.name}/")
     print(f"Indexed {len(chunks)} chunks. Collection now holds {total}.")
-    return {"documents": len(docs), "chunks": len(chunks), "indexed": total}
+    return {
+        "documents": len(docs),
+        "chunks": len(chunks),
+        "removed": removed,
+        "indexed": total,
+    }
 
 
 def main() -> None:

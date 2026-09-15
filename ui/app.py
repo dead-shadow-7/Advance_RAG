@@ -28,21 +28,61 @@ st.sidebar.write("API: " + ("🟢 up" if healthy else "🔴 unreachable"))
 if not healthy:
     st.sidebar.code("uvicorn main:app --reload")
 
-# The API owns the Qdrant lock, so it reindexes on our behalf — no need to stop
-# the server to pick up a newly added document.
-if st.sidebar.button("Re-index data/", disabled=not healthy, width="stretch"):
-    with st.spinner("Loading, chunking and embedding data/ ..."):
+def reindex(label: str = "Loading, chunking and embedding data/ ...") -> None:
+    """The API owns the Qdrant lock, so it reindexes on our behalf."""
+    with st.spinner(label):
         try:
             done = requests.post(f"{api_url}/ingest", timeout=1800)
             done.raise_for_status()
-            counts = done.json()
         except requests.RequestException as exc:
             st.sidebar.error(f"Indexing failed: {exc}")
-        else:
-            st.sidebar.success(
-                f"{counts['chunks']} chunks from {counts['documents']} pages/files "
-                f"— {counts['indexed']} in the index"
-            )
+            return
+    counts = done.json()
+    message = f"{counts['chunks']} chunks from {counts['documents']} pages/files"
+    if counts.get("removed"):
+        message += f", {counts['removed']} stale removed"
+    st.sidebar.success(message)
+
+
+with st.sidebar.expander("Documents", expanded=not healthy):
+    uploads = st.file_uploader(
+        "Add to the corpus",
+        type=["pdf", "md", "txt"],
+        accept_multiple_files=True,
+        disabled=not healthy,
+    )
+    if uploads and st.button("Upload and index", type="primary", width="stretch"):
+        failed = []
+        for upload in uploads:
+            try:
+                sent = requests.post(
+                    f"{api_url}/documents",
+                    files={"file": (upload.name, upload.getvalue())},
+                    timeout=600,
+                )
+                sent.raise_for_status()
+            except requests.RequestException as exc:
+                failed.append(f"{upload.name}: {exc}")
+        if failed:
+            st.error("\n".join(failed))
+        # One reindex for the whole batch rather than one per file.
+        reindex(f"Indexing {len(uploads)} new file(s) ...")
+
+    try:
+        documents = requests.get(f"{api_url}/documents", timeout=5).json()
+    except requests.RequestException:
+        documents = []
+    for document in documents:
+        name_col, delete_col = st.columns([4, 1])
+        name_col.caption(f"{document['name']}  ·  {document['bytes'] // 1024}KB")
+        if delete_col.button("✕", key=f"del{document['name']}", help="Delete"):
+            requests.delete(f"{api_url}/documents/{document['name']}", timeout=30)
+            # Chunks outlive the file until the next reindex, so do it now.
+            reindex(f"Removing {document['name']} from the index ...")
+            st.rerun()
+
+if st.sidebar.button("Re-index data/", disabled=not healthy, width="stretch"):
+    reindex()
 
 # Re-asking the same question after each retrieval change is the M2 loop.
 history = st.session_state.setdefault("history", [])

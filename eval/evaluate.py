@@ -21,7 +21,15 @@ from rag.pipeline import search_points
 from rag.store import create_collection, upsert_chunks
 
 QUESTIONS_PATH = PROJECT_ROOT / "eval" / "questions.json"
-MODES = ("dense", "sparse", "hybrid")
+# label, retrieval mode, reranked — "+rr" rows are the after to their before.
+RUNS = (
+    ("dense", "dense", False),
+    ("sparse", "sparse", False),
+    ("hybrid", "hybrid", False),
+    ("dense+rr", "dense", True),
+    ("hybrid+rr", "hybrid", True),
+)
+LABELS = [label for label, _, _ in RUNS]
 DEPTH = 10
 
 
@@ -88,25 +96,25 @@ def main() -> None:
     print(f"{chunk_count} chunks indexed, {len(questions)} questions\n")
 
     results, timings = {}, {}
-    for mode in MODES:
+    for label, mode, rerank in RUNS:
         started = time.time()
-        results[mode] = [
+        results[label] = [
             first_hit_rank(
-                search_points(client, q["question"], DEPTH, mode=mode),
+                search_points(client, q["question"], DEPTH, mode=mode, rerank=rerank),
                 q["source"],
                 q["contains"],
             )
             for q in questions
         ]
-        timings[mode] = (time.time() - started) / len(questions) * 1000
+        timings[label] = (time.time() - started) / len(questions) * 1000
 
-    print(f"{'mode':8} {'recall@5':>9} {'recall@10':>10} {'MRR':>7} {'ms/query':>9}")
-    print("-" * 47)
-    for mode in MODES:
-        metrics = score(results[mode])
+    print(f"{'run':10} {'recall@5':>9} {'recall@10':>10} {'MRR':>7} {'ms/query':>9}")
+    print("-" * 49)
+    for label in LABELS:
+        metrics = score(results[label])
         print(
-            f"{mode:8} {metrics['recall@5']:>9.2f} {metrics['recall@10']:>10.2f} "
-            f"{metrics['mrr']:>7.3f} {timings[mode]:>9.0f}"
+            f"{label:10} {metrics['recall@5']:>9.2f} {metrics['recall@10']:>10.2f} "
+            f"{metrics['mrr']:>7.3f} {timings[label]:>9.0f}"
         )
 
     # The split that matters: keyword search should win on exact identifiers,
@@ -115,30 +123,29 @@ def main() -> None:
     for index, question in enumerate(questions):
         by_kind[question["kind"]].append(index)
 
-    print(f"\n{'kind':12} {'n':>3}" + "".join(f"{mode:>10}" for mode in MODES) + "   (MRR)")
-    print("-" * 47)
+    print(f"\n{'kind':12} {'n':>3}" + "".join(f"{label:>10}" for label in LABELS) + "   (MRR)")
+    print("-" * 65)
     for kind, indexes in sorted(by_kind.items()):
         row = "".join(
-            f"{score([results[mode][i] for i in indexes])['mrr']:>10.3f}"
-            for mode in MODES
+            f"{score([results[label][i] for i in indexes])['mrr']:>10.3f}"
+            for label in LABELS
         )
         print(f"{kind:12} {len(indexes):>3}{row}")
 
-    print(f"\n{'question':52}" + "".join(f"{mode:>8}" for mode in MODES) + "   (rank)")
-    print("-" * 78)
+    print(f"\n{'question':46}" + "".join(f"{label:>10}" for label in LABELS) + "   (rank)")
+    print("-" * 96)
     for index, question in enumerate(questions):
-        row = "".join(
-            f"{results[mode][index] or '-':>8}" for mode in MODES
-        )
-        print(f"{question['question'][:50]:52}{row}")
+        row = "".join(f"{results[label][index] or '-':>10}" for label in LABELS)
+        print(f"{question['question'][:44]:46}{row}")
 
+    best = LABELS[-1]
     misses = [
         questions[i]["question"]
-        for i, rank in enumerate(results["hybrid"])
+        for i, rank in enumerate(results[best])
         if rank is None
     ]
     if misses:
-        print(f"\nhybrid missed {len(misses)} of {len(questions)}:")
+        print(f"\n{best} missed {len(misses)} of {len(questions)}:")
         for miss in misses:
             print("  " + miss)
 

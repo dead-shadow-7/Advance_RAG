@@ -107,3 +107,26 @@ def sparse_search(client: QdrantClient, sparse, limit: int):
 
 def count(client: QdrantClient) -> int:
     return client.count(COLLECTION).count
+
+
+def prune(client: QdrantClient, keep_chunk_ids: list[str]) -> int:
+    """Drop points that the current data/ no longer produces.
+
+    Upserting alone never removes anything, so a deleted file would keep being
+    retrieved forever. Matching on chunk_id also catches a file that shrank and
+    left orphaned trailing chunks behind.
+    """
+    before = count(client)
+    client.delete(
+        COLLECTION,
+        points_selector=models.FilterSelector(
+            filter=models.Filter(
+                must_not=[
+                    models.FieldCondition(
+                        key="chunk_id", match=models.MatchAny(any=keep_chunk_ids)
+                    )
+                ]
+            )
+        ),
+    )
+    return before - count(client)

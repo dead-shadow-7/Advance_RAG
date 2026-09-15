@@ -55,36 +55,52 @@ A question goes in, a cited answer comes out.
 Run it: `python -m rag.ingest` to index `data/`, then `uvicorn main:app --reload`.
 
 Debug UI: `streamlit run ui/app.py` — shows the ranked chunks and scores behind
-each answer, and has a "Re-index data/" button. It calls the API over HTTP, so
-the API must be running too. Embedded Qdrant locks its folder to one process,
-which is why reindexing goes through the API's own `POST /ingest` rather than a
-second process.
+each answer, and manages the corpus: upload documents, delete them, re-index.
+It calls the API over HTTP, so the API must be running too.
+
+| endpoint | does |
+|---|---|
+| `POST /ask` | question in, cited answer out |
+| `GET /documents` | list the corpus |
+| `POST /documents` | upload a .pdf/.md/.txt into `data/` |
+| `DELETE /documents/{name}` | remove one |
+| `POST /ingest` | re-index `data/` |
+
+Embedded Qdrant locks its folder to one process, which is why indexing goes
+through the API's own `POST /ingest` rather than a second process. Chunks
+outlive a deleted file until the next index, where `prune()` removes them.
 
 ### M2 — Make it find the right things
 
 Retrieval is where RAG quality lives, so this is the milestone worth the most time.
 
 - [x] Add BM25 keyword search alongside vector search, merged with RRF.
-- [ ] Add a reranker on top.
+- [x] Add a reranker on top (built and measurable; `RERANK = False` until a real
+      corpus justifies its cost).
 - [ ] Add web search and fold the results into the same pipeline.
 - [x] Write ~20 test questions with known answers, and measure Recall@5 before and after each change above.
 
 Measure with `python -m eval.evaluate` (builds its own in-memory index, so it
-runs alongside the API). On 161 chunks, 20 questions:
+runs alongside the API). Current corpus is 9 chunks, 20 questions:
 
-| mode | recall@5 | MRR | MRR exact | MRR paraphrase |
-|---|---|---|---|---|
-| dense | 0.85 | 0.675 | 0.625 | 0.708 |
-| sparse (BM25) | 0.95 | 0.733 | **0.875** | 0.639 |
-| hybrid (RRF) | **1.00** | **0.833** | 0.812 | **0.847** |
+| run | recall@5 | MRR | MRR exact | MRR paraphrase | ms/query |
+|---|---|---|---|---|---|
+| dense | 0.90 | 0.695 | 0.674 | 0.708 | 6 |
+| sparse (BM25) | 1.00 | **0.875** | 0.875 | **0.875** | 1 |
+| hybrid (RRF) | 1.00 | 0.838 | 0.875 | 0.812 | 7 |
+| dense + rerank | 1.00 | 0.823 | 0.917 | 0.760 | 703 |
+| hybrid + rerank | 1.00 | 0.823 | **0.917** | 0.760 | 694 |
 
-Each retriever wins its own half — BM25 on exact identifiers, dense on
-paraphrase — and hybrid is the only one strong at both. Dense misses questions
-like "what does IDF stand for" entirely; BM25 ranks them first.
+Reranking rescues a weak ranking (dense 0.695 → 0.823) but slightly *hurts* an
+already-good one, at ~100x the latency. At 9 chunks the shortlist is the entire
+corpus, so there is nothing for it to rescue. That is a fact about this corpus,
+not about rerankers.
 
-On the earlier 9-chunk corpus hybrid looked *worse* than BM25 alone. That
-corpus was too small to measure anything: 10 results requested from 9 chunks
-makes recall@10 meaningless. Small evaluation sets mislead confidently.
+Earlier, with a 126-page PDF also indexed (161 chunks), the same questions gave
+dense 0.675 / sparse 0.733 / **hybrid 0.833** — each retriever winning its own
+half and hybrid winning overall. On 9 chunks hybrid looks worse than BM25 alone.
+Small evaluation sets do not return "no signal"; they return a confident wrong
+answer.
 
 ### M3 — Make it handle hard questions
 
