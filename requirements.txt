@@ -7,3 +7,5 @@ tiktoken
 fastembed
 qdrant-client
 openai
+streamlit
+requests

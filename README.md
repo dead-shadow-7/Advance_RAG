@@ -55,6 +55,9 @@ A question goes in, a cited answer comes out.
 Run it: `python -m rag.ingest` to index `data/`, then `uvicorn main:app --reload`.
 Embedded Qdrant locks its folder, so stop the server before re-ingesting.
 
+Debug UI: `streamlit run ui/app.py` — shows the ranked chunks and scores behind
+each answer. It calls the API over HTTP, so the API must be running too.
+
 ### M2 — Make it find the right things
 
 Retrieval is where RAG quality lives, so this is the milestone worth the most time.
