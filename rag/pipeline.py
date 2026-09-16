@@ -5,7 +5,7 @@ from rag.embedder import embed_query, embed_query_sparse
 from rag.fusion import reciprocal_rank_fusion
 from rag.llm import complete
 from rag.reranker import rerank_passages
-from rag.schemas import AskResponse, Citation
+from rag.schemas import AskResponse, Citation, Hit
 from rag.store import dense_search, ensure_collection, get_client, sparse_search
 
 _client: QdrantClient | None = None
@@ -27,8 +27,8 @@ def search_points(
     mode: str = RETRIEVAL_MODE,
     candidates: int = CANDIDATES,
     rerank: bool = RERANK,
-) -> list[tuple]:
-    """Return (point, score) pairs, best first.
+) -> list[tuple[Hit, float]]:
+    """Return (hit, score) pairs, best first.
 
     Takes an explicit client so the evaluation harness can run against its own
     index without fighting the API for the storage lock.
@@ -60,25 +60,25 @@ def search_points(
         return scored[:top_k]
 
     shortlist = scored[:RERANK_CANDIDATES]
-    scores = rerank_passages(question, [point.payload["text"] for point, _ in shortlist])
+    scores = rerank_passages(question, [hit.text for hit, _ in shortlist])
     reordered = sorted(
-        ((point, score) for (point, _), score in zip(shortlist, scores)),
+        ((hit, score) for (hit, _), score in zip(shortlist, scores)),
         key=lambda pair: pair[1],
         reverse=True,
     )
     return reordered[:top_k]
 
 
-def to_citations(scored: list[tuple]) -> list[Citation]:
+def to_citations(scored: list[tuple[Hit, float]]) -> list[Citation]:
     return [
         Citation(
-            source=point.payload["source"],
-            chunk_id=point.payload["chunk_id"],
-            text=point.payload["text"],
+            source=hit.source,
+            chunk_id=hit.chunk_id,
+            text=hit.text,
             score=score,
-            page=point.payload.get("page"),
+            page=hit.page,
         )
-        for point, score in scored
+        for hit, score in scored
     ]
 
 

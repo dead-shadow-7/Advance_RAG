@@ -39,6 +39,41 @@ RERANK_MAX_TOKENS = 512
 CHUNK_SIZE = 512
 CHUNK_OVERLAP = 64
 
+# Web search runs as a third retriever whose results never enter Qdrant.
+# "never" | "always". A "fallback" mode — search only when the corpus looks too
+# thin to answer — needs a sufficiency signal, and the honest one is the
+# reranker's top score. That number is not measured yet, so the mode that would
+# depend on guessing it does not exist.
+WEB_SEARCH = "never"
+WEB_RESULTS = 5
+WEB_TIMEOUT = 10.0  # seconds; a slow search should not hold up a local answer
+WEB_SEARCH_DEPTH = "basic"  # "advanced" digs deeper and costs 2 credits a call
+# Tavily hands back a short query-relevant snippet per result, and the full page
+# text only when asked. RRF ranks by position alone, so the length gap does not
+# bias fusion — but it does bias the reranker and the LLM's context, and a
+# snippet that stops just short of the answer is a miss no ranking can undo.
+# "text" over "markdown": the markdown form keeps every nav link as
+# [label](href), which burns tokens and buries the prose. Plain text still
+# carries a few stray nav words at the top of a page, which is cheap by
+# comparison. False falls back to the snippet, which is only the page's head.
+WEB_RAW_CONTENT = "text"
+# A single web page can chunk into dozens of passages, which would swamp a
+# 9-chunk corpus in the fused list purely by arriving in bulk. Only the few
+# chunks of each page that best match the query compete.
+WEB_CHUNKS_PER_RESULT = 3
+# Selection is a recall bottleneck, not a ranking: a chunk dropped here is one
+# the reranker never gets to see. So keyword overlap keeps a margin above
+# WEB_CHUNKS_PER_RESULT rather than deciding outright, and the embedder — when
+# it runs at all — chooses between the survivors on meaning.
+WEB_SELECT_CANDIDATES = 8
+# Measured on a 5-result search (54 chunks): BM25 scores every chunk in 76ms,
+# dense embedding costs ~180-226ms *each*, and passing threads=12 to fastembed
+# changes nothing — that is simply what BGE-small costs at 512 tokens on this
+# CPU. Refining 8 candidates a page across 5 pages therefore adds ~7s to every
+# web query, which is why it is off until the eval says it buys recall worth
+# paying for. Off, lexical overlap alone picks the chunks.
+WEB_SELECT_DENSE = False
+
 LLM_BASE_URL = "https://api.aicredits.in/v1"
 LLM_MODEL = "qwen/qwen3.7-flash"
 LLM_TEMPERATURE = 0.2  # grounded answers, not creative ones

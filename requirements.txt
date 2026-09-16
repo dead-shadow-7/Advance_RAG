@@ -7,5 +7,6 @@ tiktoken
 fastembed
 qdrant-client
 openai
+tavily-python
 streamlit
 requests

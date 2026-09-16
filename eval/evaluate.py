@@ -66,9 +66,8 @@ def validate(questions: list[dict]) -> list[str]:
 
 def first_hit_rank(scored: list[tuple], source: str, phrase: str) -> int | None:
     needle = normalise(phrase)
-    for rank, (point, _) in enumerate(scored, start=1):
-        payload = point.payload
-        if payload["source"] == source and needle in normalise(payload["text"]):
+    for rank, (hit, _) in enumerate(scored, start=1):
+        if hit.source == source and needle in normalise(hit.text):
             return rank
     return None
 

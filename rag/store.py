@@ -4,6 +4,7 @@ from qdrant_client import QdrantClient, models
 
 from rag.chunker import Chunk
 from rag.config import COLLECTION, EMBEDDING_DIM, QDRANT_PATH
+from rag.schemas import Hit
 
 # Qdrant point ids must be ints or UUIDs, so chunk ids are hashed into one.
 # Deterministically: re-ingesting a file overwrites its points instead of
@@ -89,20 +90,38 @@ def upsert_chunks(
     )
 
 
-def dense_search(client: QdrantClient, vector: list[float], limit: int):
-    return client.query_points(
+def to_hit(point) -> Hit:
+    """Flatten a Qdrant ScoredPoint into the shape the pipeline works on.
+
+    This is the only place that knows a payload is a dict; past here a hit from
+    the index is indistinguishable from one from anywhere else.
+    """
+    payload = point.payload
+    return Hit(
+        chunk_id=payload["chunk_id"],
+        text=payload["text"],
+        source=payload["source"],
+        score=point.score,
+        page=payload.get("page"),
+    )
+
+
+def dense_search(client: QdrantClient, vector: list[float], limit: int) -> list[Hit]:
+    points = client.query_points(
         COLLECTION, query=vector, using=DENSE, limit=limit, with_payload=True
     ).points
+    return [to_hit(point) for point in points]
 
 
-def sparse_search(client: QdrantClient, sparse, limit: int):
-    return client.query_points(
+def sparse_search(client: QdrantClient, sparse, limit: int) -> list[Hit]:
+    points = client.query_points(
         COLLECTION,
         query=to_sparse_vector(sparse),
         using=SPARSE,
         limit=limit,
         with_payload=True,
     ).points
+    return [to_hit(point) for point in points]
 
 
 def count(client: QdrantClient) -> int:
